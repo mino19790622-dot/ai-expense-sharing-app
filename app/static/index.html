@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Expense App · 智能分账</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #181b22; --panel-2: #1f232c; --border: #2a2f3a;
+    --text: #e6e8ec; --muted: #9aa3b2; --accent: #4f8cff; --accent-2: #36d399;
+    --danger: #f87272; --warn: #fbbd23;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 24px 18px 60px; }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+  header h1 { font-size: 20px; margin: 0; letter-spacing: .3px; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 18px; }
+  .card h2 { margin: 0 0 14px; font-size: 15px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .6px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 6px; }
+  input, select, textarea {
+    width: 100%; background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+    border-radius: 10px; padding: 10px 12px; font-size: 14px; outline: none;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  button {
+    background: var(--accent); color: #fff; border: 0; border-radius: 10px; padding: 11px 16px;
+    font-size: 14px; font-weight: 600; cursor: pointer; transition: filter .15s; margin-top: 14px;
+  }
+  button:hover { filter: brightness(1.08); }
+  button.ghost { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+  button.ghost:hover { color: var(--text); }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .row > * { flex: 1; min-width: 160px; }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
+  .hidden { display: none !important; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .tab { padding: 8px 14px; border-radius: 9px; background: var(--panel-2); border: 1px solid var(--border); cursor: pointer; color: var(--muted); font-size: 13px; }
+  .tab.active { color: #fff; border-color: var(--accent); background: #20304d; }
+  .result { margin-top: 16px; }
+  .share-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .share { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+  .share .who { color: var(--muted); font-size: 12px; }
+  .share .amt { font-size: 18px; font-weight: 700; margin-top: 4px; }
+  .amount-up { color: var(--danger); } /* 涨/应付：红 */
+  .amount-down { color: var(--accent-2); } /* 收/结余：绿 */
+  pre { background: #0b0d11; border: 1px solid var(--border); border-radius: 10px; padding: 12px; overflow: auto; font-size: 12px; color: #c7d0e0; }
+  .history-item { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; background: var(--panel-2); }
+  .history-item .top { display: flex; justify-content: space-between; font-size: 13px; }
+  .history-item .meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .pill { display: inline-block; background: #20304d; color: #9ec3ff; font-size: 11px; padding: 2px 8px; border-radius: 999px; }
+  .badge { background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px; font-size: 12px; color: var(--muted); }
+  .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: #20304d; color: #fff; padding: 10px 18px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  .toast.err { background: #4a1d1d; }
+  .center { text-align: center; padding: 40px 0; color: var(--muted); }
+  #preview { max-width: 100%; max-height: 220px; border-radius: 10px; margin-top: 8px; border: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>💸 Expense App</h1>
+      <div class="sub">AI 收据识别 · 智能分账 · 多用户看板</div>
+    </div>
+    <div id="userbox" class="hidden">
+      <span class="badge" id="uname"></span>
+      <button class="ghost" style="margin-top:0;margin-left:8px" onclick="logout()">退出</button>
+    </div>
+  </header>
+
+  <!-- ============ 登录 / 注册 ============ -->
+  <section id="auth" class="card">
+    <div class="tabs">
+      <div class="tab active" id="tab-login" onclick="switchTab('login')">登录</div>
+      <div class="tab" id="tab-register" onclick="switchTab('register')">注册</div>
+    </div>
+    <form id="auth-form" onsubmit="return doAuth(event)">
+      <label>用户名</label>
+      <input id="auth-username" placeholder="3-20 位字母/数字/下划线" autocomplete="username" />
+      <label>密码</label>
+      <input id="auth-password" type="password" placeholder="至少 6 位" autocomplete="current-password" />
+      <button type="submit" id="auth-submit">登录</button>
+    </form>
+  </section>
+
+  <!-- ============ 应用主区 ============ -->
+  <section id="app" class="hidden">
+    <div class="card">
+      <h2>上传收据 · 一键分账</h2>
+      <label>收据图片（支持 HEIC / HEIF，会自动转 JPEG）</label>
+      <input id="file" type="file" accept="image/*" />
+      <img id="preview" class="hidden" />
+
+      <div class="row">
+        <div>
+          <label>参与者（用逗号分隔）</label>
+          <input id="names" placeholder="Alice, Bob, Carol" value="Alice, Bob, Carol" oninput="updatePaidByOptions()" />
+        </div>
+        <div>
+          <label>分账策略</label>
+          <select id="method">
+            <option value="equal">equal · 均摊</option>
+            <option value="per_item">per_item · 按菜品</option>
+            <option value="proportional">proportional · 按比例</option>
+            <option value="weighted">weighted · 按权重</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>垫付人</label>
+          <select id="paid-by"></select>
+        </div>
+        <div></div>
+      </div>
+      <div class="hint">图片先经 VLM 抽取 items/tax/paid_by，再按策略计算每人应付。真实环境需在服务端设置 OCR_BACKEND=qwen + DASHSCOPE_API_KEY。</div>
+      <button onclick="scan()">扫描并分账</button>
+
+      <div class="result hidden" id="result"></div>
+    </div>
+
+    <div class="card">
+      <h2>我的历史记录</h2>
+      <div id="history"><div class="center">暂无记录</div></div>
+    </div>
+  </section>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = "";
+let token = localStorage.getItem("exp_token") || "";
+
+function toast(msg, isErr) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = "toast show" + (isErr ? " err" : "");
+  setTimeout(() => (t.className = "toast"), 2400);
+}
+function authHeaders() {
+  return token ? { Authorization: "Bearer " + token } : {};
+}
+async function api(path, opts = {}) {
+  opts.headers = Object.assign({}, opts.headers || {}, authHeaders());
+  const res = await fetch(API + path, opts);
+  let body = null;
+  try { body = await res.json(); } catch (e) {}
+  if (!res.ok) {
+    const detail = (body && body.detail) || ("HTTP " + res.status);
+    throw new Error(detail);
+  }
+  return body;
+}
+
+// ---------- 认证 ----------
+function switchTab(tab) {
+  document.getElementById("tab-login").classList.toggle("active", tab === "login");
+  document.getElementById("tab-register").classList.toggle("active", tab === "register");
+  document.getElementById("auth-submit").textContent = tab === "login" ? "登录" : "注册";
+}
+async function doAuth(e) {
+  e.preventDefault();
+  const username = document.getElementById("auth-username").value.trim();
+  const password = document.getElementById("auth-password").value;
+  const isLogin = document.getElementById("tab-login").classList.contains("active");
+  try {
+    const r = await api("/api/v1/auth/" + (isLogin ? "login" : "register"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    token = r.token;
+    localStorage.setItem("exp_token", token);
+    enterApp(r.user);
+  } catch (err) {
+    toast(err.message, true);
+  }
+  return false;
+}
+function logout() {
+  token = "";
+  localStorage.removeItem("exp_token");
+  location.reload();
+}
+function enterApp(user) {
+  document.getElementById("auth").classList.add("hidden");
+  document.getElementById("app").classList.remove("hidden");
+  document.getElementById("userbox").classList.remove("hidden");
+  document.getElementById("uname").textContent = user.username;
+  updatePaidByOptions();
+  loadHistory();
+}
+
+// ---------- 图片预览 + HEIC/HEIF 转 JPEG ----------
+document.getElementById("file").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  const preview = document.getElementById("preview");
+  if (!file) { preview.classList.add("hidden"); return; }
+  const url = URL.createObjectURL(file);
+  preview.src = url;
+  preview.classList.remove("hidden");
+});
+
+function convertImageToJpeg(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const maxW = 1200;
+      const scale = Math.min(1, maxW / img.naturalWidth);
+      const w = Math.round(img.naturalWidth * scale);
+      const h = Math.round(img.naturalHeight * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob((blob) => {
+        if (!blob) return reject(new Error("图片转换失败"));
+        resolve(new File([blob], file.name.replace(/\.[^.]+$/i, ".jpg"), { type: "image/jpeg" }));
+      }, "image/jpeg", 0.85);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("无法解码该图片格式，请先转 JPG/PNG 再上传"));
+    };
+    img.src = url;
+  });
+}
+
+function getParticipants() {
+  const names = document.getElementById("names").value.split(",").map(s => s.trim()).filter(Boolean);
+  return names.map((n, i) => ({ id: "u" + (i + 1), name: n }));
+}
+
+function updatePaidByOptions() {
+  const select = document.getElementById("paid-by");
+  const participants = getParticipants();
+  const current = select.value;
+  select.innerHTML = participants.map(p => `<option value="${p.id}">${p.name} (${p.id})</option>`).join("");
+  if (participants.find(p => p.id === current)) select.value = current;
+}
+
+// ---------- 扫描分账 ----------
+async function scan() {
+  const fileInput = document.getElementById("file");
+  if (!fileInput.files.length) { toast("请先选择收据图片", true); return; }
+  const participants = getParticipants();
+  if (!participants.length) { toast("请至少填写一名参与者", true); return; }
+  const method = document.getElementById("method").value;
+  const paidBy = document.getElementById("paid-by").value;
+
+  let file;
+  try {
+    file = await convertImageToJpeg(fileInput.files[0]);
+  } catch (err) {
+    toast(err.message, true);
+    return;
+  }
+
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("participants", JSON.stringify(participants));
+  fd.append("method", method);
+  fd.append("paid_by", paidBy);
+
+  try {
+    const r = await api("/api/v1/scan", { method: "POST", body: fd });
+    renderResult(r);
+    loadHistory();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+function renderResult(r) {
+  const el = document.getElementById("result");
+  el.classList.remove("hidden");
+  const shares = Object.entries(r.shares || {}).map(([k, v]) => {
+    return `<div class="share"><div class="who">${k}</div><div class="amt amount-up">${v.toFixed(2)}</div></div>`;
+  }).join("");
+  el.innerHTML = `
+    <h2>分账结果 · 合计 ${(r.total || 0).toFixed(2)}</h2>
+    <div class="share-grid">${shares}</div>
+    <div class="meta" style="margin-top:10px;color:var(--muted);font-size:13px">垫付人：${r.paid_by || "—"}</div>
+    <details style="margin-top:10px"><summary style="cursor:pointer;color:var(--muted)">查看明细 / 解释</summary>
+      <pre>${JSON.stringify(r, null, 2)}</pre></details>`;
+}
+
+// ---------- 历史 ----------
+async function loadHistory() {
+  try {
+    const rows = await api("/api/v1/history");
+    const el = document.getElementById("history");
+    if (!rows.length) { el.innerHTML = '<div class="center">暂无记录</div>'; return; }
+    el.innerHTML = rows.map(r => `
+      <div class="history-item">
+        <div class="top">
+          <span><span class="pill">${r.method || "—"}</span> ${(r.total || 0).toFixed(2)}</span>
+          <span class="amount-up">垫付 ${r.paid_by || "—"}</span>
+        </div>
+        <div class="meta">${r.filename || "收据"} · ${new Date((r.created_at || 0) * 1000).toLocaleString()}</div>
+        ${r.shares ? `<div class="meta">${Object.entries(r.shares).map(([k,v]) => k+": "+v.toFixed(2)).join("  ·  ")}</div>` : ""}
+      </div>`).join("");
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+// ---------- 启动：若已有 token 则校验并直接进应用 ----------
+(async function init() {
+  if (token) {
+    try {
+      const me = await api("/api/v1/auth/me");
+      enterApp(me);
+      return;
+    } catch (e) { token = ""; localStorage.removeItem("exp_token"); }
+  }
+  document.getElementById("auth").classList.remove("hidden");
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,2 @@
+# 开发/压测期依赖（不进生产镜像，与 requirements.txt 分离）
+locust==2.32.10
