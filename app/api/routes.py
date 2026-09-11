@@ -40,6 +40,43 @@ class SettleRequest(BaseModel):
     total: float                # 整单总额
 
 
+class ConfirmRequest(BaseModel):
+    """两步式流程第二步的请求体：前端把「已分配好归属」的收据回传。
+
+    与 SplitRequest 结构相同，但语义不同：这里的 receipt.items[].assigned_to
+    带着用户在界面上勾选的「谁点了这道菜」，且结算结果会连带收据一起落库。
+    """
+    receipt: Receipt
+    participants: List[Participant]
+    method: str = Field("per_item", description="equal | per_item | proportional | weighted")
+
+
+# ---------------------------------------------------------------------------
+# 共用：算分账 + 收据/分账一起落库（/scan 与 /confirm 复用，避免逻辑分叉）
+# ---------------------------------------------------------------------------
+def _split_and_persist(
+    user: dict,
+    receipt: Receipt,
+    people: List[Participant],
+    method: str,
+    filename,
+) -> Dict[str, Any]:
+    """把一张收据算成分账结果，并把「收据 + 分账」关联落库。
+
+    收据的 items_json 会原样保存 assigned_to，
+    因此「谁点了哪道菜」的分配结果是可追溯的（历史里能查到）。
+    """
+    result = compute(receipt, people, method)
+    items_json = json.dumps([it.model_dump() for it in receipt.items])
+    receipt_id = db.save_receipt(
+        user["id"], filename, result["total"], receipt.paid_by, items_json
+    )
+    db.save_split(user["id"], receipt_id, method, json.dumps(result["shares"]))
+    result["receipt_id"] = receipt_id
+    result["receipt"] = receipt.model_dump()
+    return result
+
+
 # ---------------------------------------------------------------------------
 # 路由 1：分账
 # ---------------------------------------------------------------------------
@@ -123,23 +160,45 @@ async def post_scan(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # 若 VLM 没识别出垫付人，且前端也没指定，默认第一个参与者垫付
-    if not receipt.paid_by:
-        receipt.paid_by = paid_by or (people[0].id if people else "u1")
+    # 垫付人优先级：用户显式选择 > VLM 识别结果 > 第一个参与者。
+    # 用户在下拉框里的选择是显式意图，必须压在模型推测之上；
+    # 同时用 valid_ids 白名单兜底，防止 VLM 返回人名（如 "Alice"）而非 id 时算出幽灵份额。
+    valid_ids = {p.id for p in people}
+    explicit = (paid_by or "").strip()
+    if explicit and explicit in valid_ids:
+        receipt.paid_by = explicit
+    elif receipt.paid_by not in valid_ids:
+        receipt.paid_by = people[0].id if people else "u1"
 
-    # 3) Receipt -> 分账
+    # 3) Receipt -> 分账 + 落库（与 /confirm 共用同一段逻辑）
     try:
-        result = compute(receipt, people, method)
+        return _split_and_persist(user, receipt, people, method, file.filename)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # 4) 落库：收据 + 分账记录，做到多用户隔离
-    items_json = json.dumps([it.model_dump() for it in receipt.items])
-    receipt_id = db.save_receipt(user["id"], file.filename, result["total"], receipt.paid_by, items_json)
-    db.save_split(user["id"], receipt_id, method, json.dumps(result["shares"]))
-    result["receipt_id"] = receipt_id
-    result["receipt"] = receipt.model_dump()
-    return result
+
+# ---------------------------------------------------------------------------
+# 路由 5：Confirm —— 两步式流程第二步：不带图，提交已分配好的收据
+# ---------------------------------------------------------------------------
+@router.post("/confirm")
+def post_confirm(
+    req: ConfirmRequest,
+    user: dict = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    前端先用 /ocr 识别出菜品，用户在界面上勾选「谁点了哪道菜」后，
+    把填好 assigned_to 的收据回传至此，直接结算并落库。
+
+    与 /scan 的区别：不带图片、不重复调用 VLM；
+    与 /split 的区别：会把收据一起存下来（/split 落库时 receipt_id 为 NULL），
+    因此分配结果可在「历史记录」里追溯。
+    """
+    try:
+        return _split_and_persist(
+            user, req.receipt, req.participants, req.method, "手动分配"
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # ---------------------------------------------------------------------------

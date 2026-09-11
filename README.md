@@ -71,6 +71,9 @@ my-expense/
 4. **可观测性**：一行 `add_middleware` 接入 JSONL 访问日志，默认 stdout（容器日志驱动收集），可切文件落地。
 5. **先定位瓶颈再谈扩容**：压测发现 1→4 worker QPS 几乎不变（128→135），判定瓶颈是「压测机与服务器抢同一份受限 CPU」而非应用本身 —— 体现工程判断力。
 6. **零依赖鉴权与多用户**：密码 `pbkdf2_hmac` 加盐哈希、令牌 `hmac` 自签名、存储 `sqlite3` —— 全套标准库实现，不引入 jwt/passlib/SQLAlchemy；`get_current_user` 依赖项一行挂上即保护端点，数据按 `user_id` 隔离。
+7. **让 AI 只做它擅长的事**：VLM 负责「认出有什么菜、多少钱」，而「谁点了这道菜」这种
+   收据上根本不存在的信息，交给用户在界面上勾选 —— 识别与归属解耦，避免让模型瞎猜造成错误分账；
+   分配结果随收据一起持久化，可在历史里回溯核对。
 
 ---
 
@@ -81,7 +84,7 @@ my-expense/
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# 2) 跑测试（当前 20 passed）
+# 2) 跑测试（当前 28 passed）
 pytest tests -q
 
 # 3) 起服务
@@ -112,6 +115,22 @@ docker compose up --build   # 访问 http://localhost:8080
 | POST | `/api/v1/settle` | 份额 + 垫付者 → 最少笔数转账方案 |
 | POST | `/api/v1/ocr` | 上传收据图片 → 结构化 `Receipt` |
 | POST | `/api/v1/scan` | 上传图片 + 参与者 → 一步直接出分账结果 |
+| POST | `/api/v1/confirm` | 提交已分配好「谁点了哪道菜」的收据 → 结算并落库（两步式第二步） |
+
+### 按菜品分摊：为什么需要两步？
+
+收据照片只会写「有什么菜、多少钱」，**不会写谁点了这道菜** —— VLM 无从得知，
+所以识别结果里 `assigned_to` 一律为空（= 全员平摊）。归属信息只能由人来补充，因此拆成两步：
+
+```
+① /api/v1/ocr     —— 只识别，返回 items（assigned_to 全为空）
+② 界面勾选         —— 每道菜勾「谁吃的」，不勾 = 全员平摊，写回 receipt.items[].assigned_to
+③ /api/v1/confirm —— 提交编辑好的收据，结算并把「收据 + 分配 + 分账」一起落库
+```
+
+`/confirm` 与 `/scan` 共用同一段 `_split_and_persist()`，保证两条路径不走岔；
+且收据的 `items_json` 原样保存了 `assigned_to`，**分配结果可在历史记录里追溯**
+（`/split` 落库时 `receipt_id` 为 `NULL`，做不到这一点）。
 
 ---
 
@@ -130,3 +149,4 @@ docker compose up --build   # 访问 http://localhost:8080
 - [x] Stage 0–5（环境 / 分账引擎 / 结算 / API / OCR / 可观测压测）
 - [x] **Stage 6**：前端看板 + 多用户 / 鉴权（完整可演示产品）
 - [x] 接真实 Qwen-VL 跑通 `/scan` 端到端（需 `OCR_BACKEND=qwen` + `DASHSCOPE_API_KEY`）
+- [x] **Stage 6+**：两步式「按菜品分配」—— 识别后勾选谁点了哪道菜（`/ocr` → 界面分配 → `/confirm`），分配结果随收据落库可追溯

@@ -59,6 +59,14 @@
   .toast.err { background: #4a1d1d; }
   .center { text-align: center; padding: 40px 0; color: var(--muted); }
   #preview { max-width: 100%; max-height: 220px; border-radius: 10px; margin-top: 8px; border: 1px solid var(--border); }
+  .item-row { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; background: var(--panel-2); }
+  .item-row .desc { font-size: 14px; }
+  .item-row .amt { color: var(--muted); font-size: 13px; margin-left: 8px; }
+  .item-row .boxes { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 12px; }
+  .chk { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: var(--muted); cursor: pointer; }
+  .chk input { width: auto; margin: 0; }
+  .row-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row-btns button { flex: 1; min-width: 160px; }
 </style>
 </head>
 <body>
@@ -100,7 +108,7 @@
       <div class="row">
         <div>
           <label>参与者（用逗号分隔）</label>
-          <input id="names" placeholder="Alice, Bob, Carol" value="Alice, Bob, Carol" oninput="updatePaidByOptions()" />
+          <input id="names" placeholder="Alice, Bob, Carol" value="Alice, Bob, Carol" oninput="updatePaidByOptions(); if (typeof currentReceipt !== 'undefined' && currentReceipt) renderAssign();" />
         </div>
         <div>
           <label>分账策略</label>
@@ -119,10 +127,26 @@
         </div>
         <div></div>
       </div>
-      <div class="hint">图片先经 VLM 抽取 items/tax/paid_by，再按策略计算每人应付。真实环境需在服务端设置 OCR_BACKEND=qwen + DASHSCOPE_API_KEY。</div>
-      <button onclick="scan()">扫描并分账</button>
+      <div class="hint">
+        两种用法：<b>一键</b>直接出结果（默认按人均摊）；或先「只识别菜品」，勾选
+        <b>谁点了哪道菜</b> 再结算。真实环境需在服务端设置 OCR_BACKEND=qwen + DASHSCOPE_API_KEY。
+      </div>
+      <div class="row-btns">
+        <button onclick="scan()">一键扫描并分账</button>
+        <button class="ghost" onclick="recognize()">① 只识别菜品</button>
+      </div>
 
       <div class="result hidden" id="result"></div>
+    </div>
+
+    <!-- ============ 菜品分配（两步式第二步） ============ -->
+    <div class="card hidden" id="assign">
+      <h2>② 分配菜品 · 勾选谁点了这道菜</h2>
+      <div id="items"></div>
+      <label>税 / 服务费（可微调）</label>
+      <input id="tax" type="number" step="0.01" value="0" />
+      <div class="hint">不勾选 = 该道菜由所有人平摊。分配结果会随收据一起保存，可在历史记录里追溯。</div>
+      <button onclick="confirmSplit()">② 计算分账并保存</button>
     </div>
 
     <div class="card">
@@ -250,6 +274,83 @@ function updatePaidByOptions() {
   if (participants.find(p => p.id === current)) select.value = current;
 }
 
+// ---------- 两步式：识别 → 分配 → 结算 ----------
+// 存放 /ocr 识别出来的 Receipt；用户勾选的 assigned_to 会直接写回这个对象
+let currentReceipt = null;
+
+async function recognize() {
+  const fileInput = document.getElementById("file");
+  if (!fileInput.files.length) { toast("请先选择收据图片", true); return; }
+  let file;
+  try {
+    file = await convertImageToJpeg(fileInput.files[0]);
+  } catch (err) {
+    toast(err.message, true);
+    return;
+  }
+  const fd = new FormData();
+  fd.append("file", file);
+  try {
+    currentReceipt = await api("/api/v1/ocr", { method: "POST", body: fd });
+    renderAssign();
+    toast("识别到 " + ((currentReceipt.items || []).length) + " 道菜，请在下方分配");
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+function renderAssign() {
+  const card = document.getElementById("assign");
+  if (!currentReceipt || !currentReceipt.items) { card.classList.add("hidden"); return; }
+  const people = getParticipants();
+  const rows = currentReceipt.items.map((it, i) => {
+    const picked = it.assigned_to || [];
+    const boxes = people.map(p => `
+      <label class="chk"><input type="checkbox" data-i="${i}" data-id="${p.id}" ${picked.includes(p.id) ? "checked" : ""} />${p.name}</label>
+    `).join("");
+    return `<div class="item-row">
+      <div class="desc"><b>${it.description}</b><span class="amt">${Number(it.amount).toFixed(2)}</span></div>
+      <div class="boxes">${boxes}</div>
+    </div>`;
+  }).join("");
+  document.getElementById("items").innerHTML = rows;
+  document.getElementById("tax").value = Number(currentReceipt.tax || 0);
+  card.classList.remove("hidden");
+}
+
+function collectAssign() {
+  // 把界面上的勾选状态写回 currentReceipt.items[i].assigned_to
+  document.querySelectorAll("#items input[type=checkbox]").forEach(cb => {
+    const i = Number(cb.dataset.i);
+    let arr = (currentReceipt.items[i].assigned_to || []).filter(id => id !== cb.dataset.id);
+    if (cb.checked) arr.push(cb.dataset.id);
+    currentReceipt.items[i].assigned_to = arr;
+  });
+  currentReceipt.tax = Number(document.getElementById("tax").value || 0);
+}
+
+async function confirmSplit() {
+  if (!currentReceipt) { toast("请先点「① 只识别菜品」", true); return; }
+  const people = getParticipants();
+  if (!people.length) { toast("请至少填写一名参与者", true); return; }
+  collectAssign();
+  // 垫付人以界面选择为准，没选则沿用识别结果或第一个参与者
+  currentReceipt.paid_by = document.getElementById("paid-by").value || currentReceipt.paid_by || people[0].id;
+  const method = document.getElementById("method").value;
+  try {
+    const r = await api("/api/v1/confirm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ receipt: currentReceipt, participants: people, method }),
+    });
+    renderResult(r);
+    loadHistory();
+    toast("已按菜品分账并保存");
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
 // ---------- 扫描分账 ----------
 async function scan() {
   const fileInput = document.getElementById("file");
@@ -284,13 +385,15 @@ async function scan() {
 function renderResult(r) {
   const el = document.getElementById("result");
   el.classList.remove("hidden");
+  const nameOf = {};
+  getParticipants().forEach(p => (nameOf[p.id] = p.name));
   const shares = Object.entries(r.shares || {}).map(([k, v]) => {
-    return `<div class="share"><div class="who">${k}</div><div class="amt amount-up">${v.toFixed(2)}</div></div>`;
+    return `<div class="share"><div class="who">${nameOf[k] || k}</div><div class="amt amount-up">${Number(v).toFixed(2)}</div></div>`;
   }).join("");
   el.innerHTML = `
     <h2>分账结果 · 合计 ${(r.total || 0).toFixed(2)}</h2>
     <div class="share-grid">${shares}</div>
-    <div class="meta" style="margin-top:10px;color:var(--muted);font-size:13px">垫付人：${r.paid_by || "—"}</div>
+    <div class="meta" style="margin-top:10px;color:var(--muted);font-size:13px">垫付人：${nameOf[r.paid_by] || r.paid_by || "—"}</div>
     <details style="margin-top:10px"><summary style="cursor:pointer;color:var(--muted)">查看明细 / 解释</summary>
       <pre>${JSON.stringify(r, null, 2)}</pre></details>`;
 }

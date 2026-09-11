@@ -43,7 +43,9 @@ class MockOCRBackend:
             items=[
                 LineItem(description="Pizza", amount=pizza_price, assigned_to=[]),
                 LineItem(description="Coke", amount=12.0, assigned_to=[]),
-                LineItem(description="Salad", amount=18.0, assigned_to=["u2"]),
+                # 注意：assigned_to 一律留空 —— 收据照片不会写「谁点了这道菜」，
+                # 归属只能由用户在前端勾选后回填（见 /api/v1/confirm）。
+                LineItem(description="Salad", amount=18.0, assigned_to=[]),
             ],
             tax=6.0,
             paid_by="u1",
