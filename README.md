@@ -84,7 +84,7 @@ my-expense/
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# 2) 跑测试（当前 28 passed）
+# 2) 跑测试（当前 36 passed）
 pytest tests -q
 
 # 3) 起服务

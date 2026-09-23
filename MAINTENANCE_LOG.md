@@ -12,3 +12,8 @@
 - **Change**: new tests/test_split_strategies.py (6 tests): proportional end to end including the fact that tax follows consumption rather than headcount; the zero-consumption and zero-weight fallbacks; the unknown-method guard; and the payer receiving the integer-division remainder
 - **Verification**: pytest tests: 36 passed; ruff: all checks passed
 
+## 2026-09-23 — correct the stale test count in the README
+
+- **Change**: README.md: the local-run section claimed '当前 28 passed', which no longer matched the suite; updated to the measured 36 passed
+- **Verification**: pytest tests: 36 passed; ruff: not applicable (no .py changed)
+
