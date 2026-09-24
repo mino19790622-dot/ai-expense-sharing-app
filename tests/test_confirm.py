@@ -5,7 +5,6 @@
   2. per_item 真正尊重 assigned_to（谁点的菜算谁头上）
   3. 收据与分账一起落库，且能在历史里追溯（/split 落库时 receipt_id 为 NULL，做不到这点）
 """
-import json
 
 
 def _token(client, username="cuser"):

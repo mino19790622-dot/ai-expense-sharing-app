@@ -17,3 +17,8 @@
 - **Change**: README.md: the local-run section claimed '当前 28 passed', which no longer matched the suite; updated to the measured 36 passed
 - **Verification**: pytest tests: 36 passed; ruff: not applicable (no .py changed)
 
+## 2026-09-24 — 清掉 test_confirm.py 里未使用的 json 导入
+
+- **Change**: tests/test_confirm.py 第 8 行 import json 全文件未被引用（其余 11 处 json 均为 client.post(json=...) 关键字或 .json() 方法调用），删除该行。同时消掉该文件唯一一处 ruff F401，使整份文件 lint 归零。
+- **Verification**: pytest tests -q → 36 passed, 1 warning in 1.07s；ruff check tests/test_confirm.py → All checks passed!
+
