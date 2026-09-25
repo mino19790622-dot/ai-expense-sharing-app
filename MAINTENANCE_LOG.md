@@ -22,3 +22,8 @@
 - **Change**: tests/test_confirm.py 第 8 行 import json 全文件未被引用（其余 11 处 json 均为 client.post(json=...) 关键字或 .json() 方法调用），删除该行。同时消掉该文件唯一一处 ruff F401，使整份文件 lint 归零。
 - **Verification**: pytest tests -q → 36 passed, 1 warning in 1.07s；ruff check tests/test_confirm.py → All checks passed!
 
+## 2026-09-25 — test(auth): 让注册令牌真正被使用
+
+- **Change**: tests/test_auth.py 中 token 被赋值却从未使用（ruff F841），把注册返回的令牌改为立即调用 /api/v1/auth/me 并断言 200 + username=alice；顺带清零该文件唯一一处存量 lint 违规。
+- **Verification**: pytest 36 passed；ruff All checks passed
+

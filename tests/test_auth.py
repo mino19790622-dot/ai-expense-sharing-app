@@ -8,6 +8,10 @@ def test_register_and_login(client):
     assert data["token"] and data["user"]["username"] == "alice"
     token = data["token"]
 
+    # 注册时签发的令牌应当立即可用，不必先走一次登录
+    r_me = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert r_me.status_code == 200 and r_me.json()["username"] == "alice"
+
     # 重名注册 -> 409
     r2 = client.post("/api/v1/auth/register", json={"username": "alice", "password": "secret1"})
     assert r2.status_code == 409
