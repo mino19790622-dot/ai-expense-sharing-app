@@ -27,3 +27,8 @@
 - **Change**: tests/test_auth.py 中 token 被赋值却从未使用（ruff F841），把注册返回的令牌改为立即调用 /api/v1/auth/me 并断言 200 + username=alice；顺带清零该文件唯一一处存量 lint 违规。
 - **Verification**: pytest 36 passed；ruff All checks passed
 
+## 2026-09-30 — tests/test_auth.py 三个测试补 docstring
+
+- **Change**: 为 test_register_and_login / test_me_requires_and_accepts_token / test_password_validation 各补一行 docstring，写清各自覆盖的断言（令牌可用性、401 分支、密码长度校验）。纯文档改动，未改任何断言或业务逻辑。
+- **Verification**: pytest 36 passed; ruff check tests/test_auth.py -> All checks passed
+

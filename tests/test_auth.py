@@ -2,6 +2,7 @@
 
 
 def test_register_and_login(client):
+    """注册即签发可用令牌；重名 409，登录成功换发新令牌，密码错误 401。"""
     r = client.post("/api/v1/auth/register", json={"username": "alice", "password": "secret1"})
     assert r.status_code == 200
     data = r.json()
@@ -26,6 +27,7 @@ def test_register_and_login(client):
 
 
 def test_me_requires_and_accepts_token(client):
+    """/me 带合法令牌返回本人；缺令牌或伪造令牌一律 401。"""
     token = client.post(
         "/api/v1/auth/register", json={"username": "bob", "password": "secret1"}
     ).json()["token"]
@@ -42,6 +44,7 @@ def test_me_requires_and_accepts_token(client):
 
 
 def test_password_validation(client):
+    """过短的密码应在注册阶段被拒（400），不得落库。"""
     # 密码太短
     r = client.post("/api/v1/auth/register", json={"username": "x", "password": "123"})
     assert r.status_code == 400
