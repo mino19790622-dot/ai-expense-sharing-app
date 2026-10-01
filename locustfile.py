@@ -10,7 +10,7 @@ Stage 5 — Locust 压测脚本（工业级，简历/演示用）
 含义：模拟 100 个并发用户（每秒起 20 个），跑 30 秒，
       3/4 流量打 /health，1/4 打 /split，产 QPS / 响应时间分布报告。
 """
-from locust import HttpUser, task, between
+from locust import HttpUser, between, task
 
 
 class ExpenseUser(HttpUser):

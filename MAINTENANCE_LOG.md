@@ -32,3 +32,8 @@
 - **Change**: 为 test_register_and_login / test_me_requires_and_accepts_token / test_password_validation 各补一行 docstring，写清各自覆盖的断言（令牌可用性、401 分支、密码长度校验）。纯文档改动，未改任何断言或业务逻辑。
 - **Verification**: pytest 36 passed; ruff check tests/test_auth.py -> All checks passed
 
+## 2026-10-01 — 统一 locustfile.py 的 import 写法
+
+- **Change**: locustfile.py: 'from locust import HttpUser, task, between' -> 'HttpUser, between, task'，按 ruff I001 排序；纯写法统一，不改变压测行为（三个名字都是同一模块的符号，导入顺序无语义影响）。
+- **Verification**: pytest tests: 36 passed; ruff check locustfile.py: All checks passed
+
