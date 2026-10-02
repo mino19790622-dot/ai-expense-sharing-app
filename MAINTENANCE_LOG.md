@@ -37,3 +37,8 @@
 - **Change**: locustfile.py: 'from locust import HttpUser, task, between' -> 'HttpUser, between, task'，按 ruff I001 排序；纯写法统一，不改变压测行为（三个名字都是同一模块的符号，导入顺序无语义影响）。
 - **Verification**: pytest tests: 36 passed; ruff check locustfile.py: All checks passed
 
+## 2026-10-02 — 统一 db.py 的标准库 import 排序（I001）
+
+- **Change**: app/core/db.py 的 stdlib import 块按字母序排列：import json 从 time 之后提到 os 之前（json < os < sqlite3 < time）。纯写法统一，不改变任何运行时行为；顺手清零该文件唯一一处 ruff I001，使其从带债名单毕业。
+- **Verification**: pytest tests: 36 passed；ruff check app/core/db.py: All checks passed（"files" 仅 app/core/db.py）
+

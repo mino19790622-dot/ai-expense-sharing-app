@@ -9,10 +9,10 @@ Stage 6 — 多用户存储层（标准库实现，零额外依赖）
     且把「技术选型克制、不为 demo 上重依赖」这一点讲出来是加分项。
   - DB 路径由环境变量 EXPENSE_DB 控制，测试时可指向临时文件，互不污染。
 """
+import json
 import os
 import sqlite3
 import time
-import json
 
 # 默认落在项目 data/app.db；测试用环境变量覆盖为临时库
 _DEFAULT_DB = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "app.db")
