@@ -42,3 +42,8 @@
 - **Change**: app/core/db.py 的 stdlib import 块按字母序排列：import json 从 time 之后提到 os 之前（json < os < sqlite3 < time）。纯写法统一，不改变任何运行时行为；顺手清零该文件唯一一处 ruff I001，使其从带债名单毕业。
 - **Verification**: pytest tests: 36 passed；ruff check app/core/db.py: All checks passed（"files" 仅 app/core/db.py）
 
+## 2026-10-05 — 整理 split 测试的导入顺序并补全用例说明
+
+- **Change**: tests/test_split.py: 修正 I001 导入块（compute 归位到字母序末尾，第三方/本地之间补空行），并为 5 个测试函数各补一行 docstring，说明各策略断言的口径。未改任何断言与业务逻辑。
+- **Verification**: pytest 36 passed；ruff check tests/test_split.py All checks passed
+

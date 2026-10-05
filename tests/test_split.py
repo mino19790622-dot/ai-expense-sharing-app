@@ -1,7 +1,9 @@
 
-from app.core.split import compute, LineItem, Participant, Receipt
+from app.core.split import LineItem, Participant, Receipt, compute
+
 
 def test_equal():
+    """无附加条件时，equal 策略给四人各 25。"""
     r = Receipt(items=[LineItem(description="x", amount=100)],
                 tax=0, paid_by="u1")
     parts = [Participant(id="u1", name="A"),
@@ -12,6 +14,7 @@ def test_equal():
     assert out["shares"] == {"u1":25,"u2":25,"u3":25,"u4":25}
 
 def test_per_item_assigned():
+    """per_item 策略：披萨 30 由 u1/u2 平摊，可乐 20 全归 u3。"""
     r = Receipt(items=[
         LineItem(description="披萨", amount=30, assigned_to=["u1","u2"]),
         LineItem(description="可乐", amount=20, assigned_to=["u3"]),
@@ -23,6 +26,7 @@ def test_per_item_assigned():
     assert out["shares"] == {"u1":15,"u2":15,"u3":20}
 
 def test_per_item_empty_assigned_means_all():
+    """per_item 策略：assigned_to 为空表示该项全员平摊。"""
     # assigned_to 为空 = 大家平摊
     r = Receipt(items=[LineItem(description="餐", amount=60, assigned_to=[])],
                 tax=0, paid_by="u1")
@@ -32,6 +36,7 @@ def test_per_item_empty_assigned_means_all():
     assert out["shares"] == {"u1":20,"u2":20,"u3":20}
 
 def test_weighted():
+    """weighted 策略：权重 1.0 与 0.5 应按比例得到 66.67 / 33.33。"""
     r = Receipt(items=[LineItem(description="x", amount=100)],
                 tax=0, paid_by="u1")
     parts = [Participant(id="u1",name="A",weight=1.0),
@@ -42,6 +47,7 @@ def test_weighted():
     assert abs(out["shares"]["u2"] - 33.33) < 0.01
 
 def test_total_conserved():
+    """守恒性：所有 shares 之和应等于含税总消费。"""
     # 守恒：所有 shares 之和 == 总消费
     r = Receipt(items=[LineItem(description="a", amount=33.33),
                        LineItem(description="b", amount=33.33),
