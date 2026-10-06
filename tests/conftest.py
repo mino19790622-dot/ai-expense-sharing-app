@@ -14,13 +14,14 @@ os.environ["OCR_BACKEND"] = "mock"
 
 import pytest
 from fastapi.testclient import TestClient
-from app.main import app
+
 from app.core import db as db_module
+from app.main import app
 
 
 @pytest.fixture
 def client():
-    # 清空数据，保证每个测试互不干扰
+    """返回一个前置清空三张表的 TestClient，保证用例之间互不干扰。"""
     c = db_module._conn()
     c.executescript("DELETE FROM splits; DELETE FROM receipts; DELETE FROM users;")
     c.commit()

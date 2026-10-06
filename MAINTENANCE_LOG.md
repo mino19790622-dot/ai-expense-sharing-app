@@ -47,3 +47,8 @@
 - **Change**: tests/test_split.py: 修正 I001 导入块（compute 归位到字母序末尾，第三方/本地之间补空行），并为 5 个测试函数各补一行 docstring，说明各策略断言的口径。未改任何断言与业务逻辑。
 - **Verification**: pytest 36 passed；ruff check tests/test_split.py All checks passed
 
+## 2026-10-06 — 整理测试公共配置的导入顺序并补 fixture 说明
+
+- **Change**: tests/conftest.py: 修正 ruff I001 导入块（第三方与本地 import 之间补空行，app.core 归位到 app.main 之前），并给 client fixture 补一行 docstring 说明「前置清空三张表、保证用例互不干扰」；原来那行重复的同行注释一并删掉。os.environ 的三行前置赋值一行未动，仍在 import app 之前。未改任何断言与业务逻辑。
+- **Verification**: pytest tests -q -> 36 passed（改前 36，未增减）；ruff check tests/conftest.py -> All checks passed；该文件唯一一处存量违规清零，仓库总量 67 -> 66
+
