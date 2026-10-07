@@ -47,13 +47,17 @@ flowchart LR
 my-expense/
 ├── app/
 │   ├── main.py              # FastAPI 实例 + /health + 挂载路由/中间件
-│   ├── api/routes.py        # /split /settle /ocr /scan
+│   ├── api/
+│   │   ├── routes.py        # /split /settle /ocr /scan /confirm /history
+│   │   └── auth_routes.py   # /auth/register /auth/login /auth/me
 │   └── core/
 │       ├── split.py         # 分账引擎（4 策略 + 整数分运算）
 │       ├── debt.py          # 最小现金流结算
 │       ├── ocr.py           # 图片 → Receipt（Mock / Qwen-VL 可插拔）
-│       └── middleware.py    # JSONL 访问日志
-├── tests/                   # pytest：split/debt/api/ocr/observability
+│       ├── middleware.py    # JSONL 访问日志
+│       ├── auth.py          # 密码加盐哈希 + 自签名令牌（标准库）
+│       └── db.py            # sqlite3 多用户存储与隔离
+├── tests/                   # pytest：split/strategies/debt/api/auth/confirm/ocr/observability
 ├── scripts/bench.py         # 零依赖压测脚本
 ├── locustfile.py            # 工业级压测（简历/演示）
 ├── Dockerfile / docker-compose.yml
@@ -116,6 +120,7 @@ docker compose up --build   # 访问 http://localhost:8080
 | POST | `/api/v1/ocr` | 上传收据图片 → 结构化 `Receipt` |
 | POST | `/api/v1/scan` | 上传图片 + 参与者 → 一步直接出分账结果 |
 | POST | `/api/v1/confirm` | 提交已分配好「谁点了哪道菜」的收据 → 结算并落库（两步式第二步） |
+| GET | `/api/v1/history` | 当前登录用户最近的收据与分账记录（需令牌） |
 
 ### 按菜品分摊：为什么需要两步？
 

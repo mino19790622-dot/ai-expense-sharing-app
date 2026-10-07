@@ -52,3 +52,8 @@
 - **Change**: tests/conftest.py: 修正 ruff I001 导入块（第三方与本地 import 之间补空行，app.core 归位到 app.main 之前），并给 client fixture 补一行 docstring 说明「前置清空三张表、保证用例互不干扰」；原来那行重复的同行注释一并删掉。os.environ 的三行前置赋值一行未动，仍在 import app 之前。未改任何断言与业务逻辑。
 - **Verification**: pytest tests -q -> 36 passed（改前 36，未增减）；ruff check tests/conftest.py -> All checks passed；该文件唯一一处存量违规清零，仓库总量 67 -> 66
 
+## 2026-10-07 — README 目录树与 API 表对齐 Stage 6
+
+- **Change**: README.md 的目录树仍停留在 Stage 5：app/api/ 只列了 routes.py（漏 auth_routes.py），app/core/ 只列到 middleware.py（漏 auth.py / db.py）；routes.py 的端点注释漏了 /confirm 与 /history；tests/ 的说明也漏了 auth/confirm/strategies。另补上 API 速览表里缺失的 GET /api/v1/history 一行。纯文档，未改任何代码或断言。
+- **Verification**: pytest tests -q -> 36 passed（改前 36，未增减）；ruff 不适用（本次只改 .md）；逐项核对：README 列出的 8 个测试域与 tests/ 下 8 个 test_*.py 一一对应，/history 端点确在 app/api/routes.py:207
+
