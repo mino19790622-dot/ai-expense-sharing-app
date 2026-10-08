@@ -57,3 +57,8 @@
 - **Change**: README.md 的目录树仍停留在 Stage 5：app/api/ 只列了 routes.py（漏 auth_routes.py），app/core/ 只列到 middleware.py（漏 auth.py / db.py）；routes.py 的端点注释漏了 /confirm 与 /history；tests/ 的说明也漏了 auth/confirm/strategies。另补上 API 速览表里缺失的 GET /api/v1/history 一行。纯文档，未改任何代码或断言。
 - **Verification**: pytest tests -q -> 36 passed（改前 36，未增减）；ruff 不适用（本次只改 .md）；逐项核对：README 列出的 8 个测试域与 tests/ 下 8 个 test_*.py 一一对应，/history 端点确在 app/api/routes.py:207
 
+## 2026-10-08 — Test the greedy _min_cash_flow core directly
+
+- **Change**: tests/test_debt.py: the private helper _min_cash_flow was imported but never used (ruff F401) and had zero direct coverage, despite being the greedy core that settle() delegates to. Added two tests: exact 2-debtor/2-creditor chain output, and the no-op cases plus the int-cents conservation invariant. Expected values were obtained by running the function first, not inferred. Also sorted the import line (ruff I001). No business logic touched.
+- **Verification**: pytest 38 passed (was 36, +2); ruff All checks passed on tests/test_debt.py; file now lint-clean (2 -> 0).
+

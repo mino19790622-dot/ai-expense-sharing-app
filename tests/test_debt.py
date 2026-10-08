@@ -1,4 +1,4 @@
-from app.core.debt import settle, naive_settle, _min_cash_flow
+from app.core.debt import _min_cash_flow, naive_settle, settle
 
 
 def test_simple_two_people():
@@ -54,3 +54,24 @@ def test_three_person_cycle_minimized():
     for t in out["transfers"]:
         assert t["to"] == "u1"
     assert sum(t["amount"] for t in out["transfers"]) == 30.0
+
+
+def test_min_cash_flow_chains_two_debtors_into_two_creditors():
+    # 直接测贪心核心（输入输出都是「分」）：欠得最多的 a 先配该收最多的 c，
+    # 归零后再让 b 依次与 c、d 配对 ⇒ 恰好 3 笔
+    out = _min_cash_flow({"a": -300, "b": -200, "c": 400, "d": 100})
+    assert out == [
+        {"from": "a", "to": "c", "amount_cents": 300},
+        {"from": "b", "to": "c", "amount_cents": 100},
+        {"from": "b", "to": "d", "amount_cents": 100},
+    ]
+
+
+def test_min_cash_flow_needs_both_sides_and_keeps_cents():
+    # 缺少债务人（全为 0）或缺少债权人（空）时都不该产生转账
+    assert _min_cash_flow({}) == []
+    assert _min_cash_flow({"a": 0, "b": 0}) == []
+    # 金额一律用整数「分」，且转出总额 == 债权总额（钱不会凭空消失）
+    out = _min_cash_flow({"a": -300, "b": -200, "c": 400, "d": 100})
+    assert all(isinstance(t["amount_cents"], int) for t in out)
+    assert sum(t["amount_cents"] for t in out) == 500
