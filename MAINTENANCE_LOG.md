@@ -62,3 +62,8 @@
 - **Change**: tests/test_debt.py: the private helper _min_cash_flow was imported but never used (ruff F401) and had zero direct coverage, despite being the greedy core that settle() delegates to. Added two tests: exact 2-debtor/2-creditor chain output, and the no-op cases plus the int-cents conservation invariant. Expected values were obtained by running the function first, not inferred. Also sorted the import line (ruff I001). No business logic touched.
 - **Verification**: pytest 38 passed (was 36, +2); ruff All checks passed on tests/test_debt.py; file now lint-clean (2 -> 0).
 
+## 2026-10-09 — docs(db): list_history 的四条隐式契约
+
+- **Change**: app/core/db.py 的 list_history() 原 docstring 只有一句「返回该用户的收据 + 对应分账，按时间倒序」。补写四条调用方必须知道的契约：(1) 以 receipts 为左表 LEFT JOIN splits ⇒ 无分账的收据照样返回且 split_id/method/shares 为 None，同一收据挂多条分账则各占一行；(2) receipt_id 为 NULL 的分账永远查不到（连接条件 s.receipt_id = r.id 匹配不上 NULL），而 POST /split 正是以 receipt_id=None 落库 ⇒ 只有 POST /confirm 的组合可追溯；(3) 硬编码 LIMIT 50、无分页参数，第 51 条起静默丢弃，调用方无法区分「只有 50 条」与「被截断」；(4) shares_json 为空串或 NULL 时 shares 收敛为 None，不抛 JSONDecodeError。四条均用临时库实测确认（无分账收据 1 行、双分账收据 2 行、孤儿分账 0 行、空串 shares_json → None）。纯文档，+15/-1，无行为变更。
+- **Verification**: pytest 38 passed；ruff All checks passed（仅 lint 改动文件 app/core/db.py）
+

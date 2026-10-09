@@ -134,7 +134,21 @@ def save_split(user_id: int, receipt_id, method: str, shares_json: str) -> int:
 
 
 def list_history(user_id: int):
-    """返回该用户的收据 + 对应分账，按时间倒序。"""
+    """返回该用户的收据 + 对应分账，按**收据**创建时间倒序。
+
+    调用方需要知道的四条契约：
+      1. 以 receipts 为左表 LEFT JOIN splits ⇒ 没有分账的收据照样返回，
+         `split_id` / `method` / `shares` 均为 None；同一张收据若挂多条分账，
+         则每条分账各占一行（收据字段重复），不是合并成一行。
+      2. `receipt_id` 为 NULL 的分账永远查不到 —— 连接条件是
+         `s.receipt_id = r.id`，NULL 匹配不上任何 r.id。`POST /split` 正是
+         这样落库的（app/api/routes.py 传 receipt_id=None），所以只有
+         `POST /confirm` 产生的收据-分账组合可在此追溯。
+      3. 硬编码 `LIMIT 50`，没有分页参数 ⇒ 第 51 条起被**静默丢弃**，
+         调用方无法从返回结果区分「只有 50 条」和「被截断了」。
+      4. `shares_json` 为空串或 NULL 时 `shares` 收敛为 None，
+         不会抛 JSONDecodeError。
+    """
     conn = _conn()
     try:
         rows = conn.execute(
