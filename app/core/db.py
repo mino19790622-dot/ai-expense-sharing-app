@@ -72,6 +72,20 @@ def init_db() -> None:
 # 用户
 # ---------------------------------------------------------------------------
 def create_user(username: str, pw_hash: str) -> int:
+    """插入一个新用户，返回其自增主键（`int`）。
+
+    调用方需要知道的三条契约：
+      1. `users.username` 带 `UNIQUE` 约束 ⇒ 用户名重复时**抛**
+         `sqlite3.IntegrityError`（"UNIQUE constraint failed: users.username"），
+         而不是返回 None / -1 之类的哨兵值。调用方必须自己 try/except。
+      2. `app/api/auth_routes.py` 的注册流程是「先 `get_user_by_username` 查重、
+         再 `create_user` 插入」的两步写法 —— 这是 TOCTOU：两个并发请求带同一
+         用户名时，两者都可能查到「不存在」并通过检查，随后第二个插入撞上
+         UNIQUE 约束抛异常，且该异常在路由层未被捕获 ⇒ 500 而不是 409。
+         要做成并发安全，需在此捕获 IntegrityError 后转成业务错误。
+      3. `_conn()` 每条连接都执行 `PRAGMA foreign_keys = ON`，但本函数只写
+         users 表，不受外键约束影响。
+    """
     conn = _conn()
     try:
         cur = conn.execute(
@@ -85,6 +99,12 @@ def create_user(username: str, pw_hash: str) -> int:
 
 
 def get_user_by_username(username: str):
+    """按用户名查用户。命中返回 `dict`（不是 `sqlite3.Row`），未命中返回 `None`。
+
+    注意 `_conn()` 设了 `row_factory = sqlite3.Row`，但本函数用 `dict(row)`
+    转换后再返回 —— 调用方可以直接 `.get()` / 下标取值，也可以安全地
+    `if not user:` 判空，两种写法都成立。
+    """
     conn = _conn()
     try:
         row = conn.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
@@ -94,6 +114,11 @@ def get_user_by_username(username: str):
 
 
 def get_user_by_id(uid: int):
+    """按主键查用户。语义与 `get_user_by_username` 一致：命中 `dict`、未命中 `None`。
+
+    调用方（`app/core/auth.py` 的鉴权依赖）用 `None` 表示「token 里的 uid
+    在库中已不存在」（例如库被重建），从而判为未授权。
+    """
     conn = _conn()
     try:
         row = conn.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()

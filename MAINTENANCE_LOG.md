@@ -67,3 +67,8 @@
 - **Change**: app/core/db.py 的 list_history() 原 docstring 只有一句「返回该用户的收据 + 对应分账，按时间倒序」。补写四条调用方必须知道的契约：(1) 以 receipts 为左表 LEFT JOIN splits ⇒ 无分账的收据照样返回且 split_id/method/shares 为 None，同一收据挂多条分账则各占一行；(2) receipt_id 为 NULL 的分账永远查不到（连接条件 s.receipt_id = r.id 匹配不上 NULL），而 POST /split 正是以 receipt_id=None 落库 ⇒ 只有 POST /confirm 的组合可追溯；(3) 硬编码 LIMIT 50、无分页参数，第 51 条起静默丢弃，调用方无法区分「只有 50 条」与「被截断」；(4) shares_json 为空串或 NULL 时 shares 收敛为 None，不抛 JSONDecodeError。四条均用临时库实测确认（无分账收据 1 行、双分账收据 2 行、孤儿分账 0 行、空串 shares_json → None）。纯文档，+15/-1，无行为变更。
 - **Verification**: pytest 38 passed；ruff All checks passed（仅 lint 改动文件 app/core/db.py）
 
+## 2026-10-15 — docs(db): pin the return and exception contracts of the user helpers
+
+- **Change**: 给 app/core/db.py 的 create_user / get_user_by_username / get_user_by_id 补 docstring（+28 行，纯文档，无行为变更）。三条契约均先用 /tmp 临时库探针实测确认：(1) username 有 UNIQUE 约束，重复插入抛 sqlite3.IntegrityError('UNIQUE constraint failed: users.username')，不返回哨兵值；(2) auth_routes.py 的注册流程是 get_user_by_username 查重 + create_user 插入的两步写法，并发下同用户名会撞 UNIQUE 且异常未在路由层捕获 => 500 而非 409（TOCTOU）；(3) 两个 getter 命中返回 dict、未命中返回 None，auth.py:98-100 依赖该 None 语义判 401。
+- **Verification**: ok:true — pytest 38 passed；ruff All checks passed（仅 lint 改动文件 app/core/db.py）
+
