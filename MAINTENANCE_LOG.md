@@ -72,3 +72,8 @@
 - **Change**: 给 app/core/db.py 的 create_user / get_user_by_username / get_user_by_id 补 docstring（+28 行，纯文档，无行为变更）。三条契约均先用 /tmp 临时库探针实测确认：(1) username 有 UNIQUE 约束，重复插入抛 sqlite3.IntegrityError('UNIQUE constraint failed: users.username')，不返回哨兵值；(2) auth_routes.py 的注册流程是 get_user_by_username 查重 + create_user 插入的两步写法，并发下同用户名会撞 UNIQUE 且异常未在路由层捕获 => 500 而非 409（TOCTOU）；(3) 两个 getter 命中返回 dict、未命中返回 None，auth.py:98-100 依赖该 None 语义判 401。
 - **Verification**: ok:true — pytest 38 passed；ruff All checks passed（仅 lint 改动文件 app/core/db.py）
 
+## 2026-10-16 — README 环境变量表补齐 + 测试数同步
+
+- **Change**: README.md: ① 环境变量表原列 3 项(OCR_BACKEND/DASHSCOPE_API_KEY/ACCESS_LOG_FILE)，实测代码共读 6 项，补 OCR_MODEL(默认 qwen-vl-max, ocr.py:93, 仅 OCR_BACKEND=qwen 生效)/EXPENSE_DB(默认 app/data/app.db, db.py:19)/SECRET_KEY(默认 dev-insecure-change-me, auth.py:24, 令牌 HMAC 签名密钥); ② 本地运行段'当前 36 passed'与实测不符, 改为 38。仅文档 +4/-1, 无行为变更。
+- **Verification**: pytest 38 passed; 仅改 .md, lint 跳过
+

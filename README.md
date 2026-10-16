@@ -88,7 +88,7 @@ my-expense/
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# 2) 跑测试（当前 36 passed）
+# 2) 跑测试（当前 38 passed）
 pytest tests -q
 
 # 3) 起服务
@@ -106,7 +106,10 @@ docker compose up --build   # 访问 http://localhost:8080
 |------|------|------|
 | `OCR_BACKEND` | `mock`（离线）或 `qwen`（真实 Qwen-VL） | `mock` |
 | `DASHSCOPE_API_KEY` | 启用 `qwen` 后端所需 | 无 |
+| `OCR_MODEL` | `qwen` 后端使用的 VLM 型号（仅 `OCR_BACKEND=qwen` 时生效） | `qwen-vl-max` |
 | `ACCESS_LOG_FILE` | 访问日志落盘路径（不设则打 stdout） | 无 |
+| `EXPENSE_DB` | SQLite 数据库文件路径（测试指向临时库即可隔离） | `app/data/app.db` |
+| `SECRET_KEY` | 令牌 HMAC 签名密钥 —— **生产必须替换**，默认值仅供开发 | `dev-insecure-change-me` |
 
 ---
 
