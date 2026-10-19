@@ -131,6 +131,23 @@ def get_user_by_id(uid: int):
 # 收据 & 分账记录
 # ---------------------------------------------------------------------------
 def save_receipt(user_id: int, filename, total, paid_by, items_json) -> int:
+    """插入一张收据，返回其自增主键（`int`）。
+
+    调用方需要知道的三条契约（均为 2026-10-19 临时库实测）：
+      1. `receipts.user_id` **声明了**外键，且 `_conn()` 每个连接都开
+         `PRAGMA foreign_keys = ON` ⇒ 传入不存在的 `user_id` 会抛
+         `sqlite3.IntegrityError: FOREIGN KEY constraint failed`，不会静默写入。
+         与 `save_split` 的非对称行为对比见该函数的文档。
+      2. 其余四个列（`filename` / `total` / `paid_by` / `items_json`）在 schema 里
+         **都可为空**，函数也不做任何校验 ⇒ 传 `None` 会原样落成 NULL 且不报错。
+         实测 `save_receipt(uid, None, None, None, None)` 写入一行四列全 NULL 的收据，
+         之后 `list_history` 会把它照常返回（`total` 为 None）。
+         ⇒ 「解析失败」必须由调用方在**写库之前**判断，写进来就再也区分不出。
+      3. `items_json` 是**已序列化好的字符串**，本函数只做透传、不 `json.dumps`；
+         传 `dict`/`list` 会抛 `sqlite3.ProgrammingError`
+         （"Error binding parameter 5: type 'dict' is not supported"），
+         不是被自动编码 —— 序列化必须在调用方完成。
+    """
     conn = _conn()
     try:
         cur = conn.execute(
@@ -145,6 +162,24 @@ def save_receipt(user_id: int, filename, total, paid_by, items_json) -> int:
 
 
 def save_split(user_id: int, receipt_id, method: str, shares_json: str) -> int:
+    """插入一条分账记录，返回其自增主键（`int`）。
+
+    调用方需要知道的四条契约（均为 2026-10-19 临时库实测）：
+      1. ⚠️ `splits.receipt_id` **没有声明外键**（`init_db()` 里 splits 表只有
+         `FOREIGN KEY(user_id)`）⇒ 传一个不存在的 `receipt_id` 会**静默成功**，
+         既不抛 `IntegrityError` 也不提示。这与 `save_receipt` 传坏 `user_id`
+         会抛 `IntegrityError` 形成**非对称**行为，极易被当成「两边都会校验」。
+      2. 上述孤儿分账随后**永远查不到** —— `list_history` 以 receipts 为左表
+         `LEFT JOIN splits ON s.receipt_id = r.id`，`999999` 匹配不上任何收据。
+         实测：写入 1 条孤儿分账后 `len(list_history(uid)) == 0`。
+         ⇒ 拼错 `receipt_id` 的代价是「数据在库里但用户永远看不见」，而不是报错。
+      3. `receipt_id=None` 是**合法且刻意**的写法：`POST /split`（`app/api/routes.py:96`）
+         走的就是这条。带收据号的路径是 `POST /confirm` 与 `POST /scan`，两者都经
+         `_split_and_persist()` 先建收据再建分账。这类 NULL 分账同样不会被
+         `list_history` 返回，属已知设计，不是 bug。
+      4. `shares_json` 与 `save_receipt` 的 `items_json` 一样只做透传，
+         必须是已序列化好的字符串。
+    """
     conn = _conn()
     try:
         cur = conn.execute(

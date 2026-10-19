@@ -77,3 +77,8 @@
 - **Change**: README.md: ① 环境变量表原列 3 项(OCR_BACKEND/DASHSCOPE_API_KEY/ACCESS_LOG_FILE)，实测代码共读 6 项，补 OCR_MODEL(默认 qwen-vl-max, ocr.py:93, 仅 OCR_BACKEND=qwen 生效)/EXPENSE_DB(默认 app/data/app.db, db.py:19)/SECRET_KEY(默认 dev-insecure-change-me, auth.py:24, 令牌 HMAC 签名密钥); ② 本地运行段'当前 36 passed'与实测不符, 改为 38。仅文档 +4/-1, 无行为变更。
 - **Verification**: pytest 38 passed; 仅改 .md, lint 跳过
 
+## 2026-10-19 — 为 save_receipt / save_split 补写外键与 NULL 契约
+
+- **Change**: app/core/db.py 两个此前无 docstring 的写入函数补文档（+35/-0，纯注释，业务逻辑零改动）：save_receipt 说明 receipts.user_id 声明了外键故传坏 user_id 抛 IntegrityError、其余四列均可为空会原样落 NULL、items_json 只透传需调用方序列化；save_split 说明 splits.receipt_id 没有外键故传坏 receipt_id 会静默成功、这类孤儿分账因 LEFT JOIN 永远查不到、receipt_id=None 是 /split 的刻意写法。四条断言全部用临时库探针实测取得。
+- **Verification**: pytest 38 passed；ruff app/core/db.py All checks passed
+
