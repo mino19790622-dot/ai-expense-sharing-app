@@ -82,3 +82,8 @@
 - **Change**: app/core/db.py 两个此前无 docstring 的写入函数补文档（+35/-0，纯注释，业务逻辑零改动）：save_receipt 说明 receipts.user_id 声明了外键故传坏 user_id 抛 IntegrityError、其余四列均可为空会原样落 NULL、items_json 只透传需调用方序列化；save_split 说明 splits.receipt_id 没有外键故传坏 receipt_id 会静默成功、这类孤儿分账因 LEFT JOIN 永远查不到、receipt_id=None 是 /split 的刻意写法。四条断言全部用临时库探针实测取得。
 - **Verification**: pytest 38 passed；ruff app/core/db.py All checks passed
 
+## 2026-10-20 — OCR/scan 测试补 docstring
+
+- **Change**: tests/test_ocr.py 的 5 个测试各补一行 docstring：说明 401 鉴权拦截、mock 后端固定 paid_by=u1 的原因、/scan 的 shares+receipt_id 双返回、非图片走 400 而非 422/500、history 断言用 >=1 不假设空库。纯注释，不改运行时行为。
+- **Verification**: pytest 38 passed；ruff tests/test_ocr.py All checks passed
+
