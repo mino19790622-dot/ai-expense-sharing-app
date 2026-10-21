@@ -18,10 +18,27 @@ class ExpenseUser(HttpUser):
 
     @task(3)  # 权重 3：更频繁地打轻量健康检查
     def health(self):
+        """健康检查：**唯一不需要鉴权**的端点（`app/main.py:47`），所以也是唯一一条
+        真正走到应用代码的压测流量 —— 它返回常量 dict，p99 只反映框架 + 中间件开销。
+        """
         self.client.get("/health")
 
     @task(1)  # 权重 1：较少地打分账接口（更重）
     def split(self):
+        """分账压测：⚠️ **当前这条流量全部是 404，不是分账延迟**。
+
+        路径 `/split` 是 Stage 5 的旧写法；Stage 6 把业务路由挂到
+        `APIRouter(prefix="/api/v1")`（`app/api/routes.py:22`），真实端点是
+        `/api/v1/split`，且带 `Depends(get_current_user)`（`routes.py:83`）。
+
+        实测（`TestClient`，空库）：`POST /split` → **404**；`POST /api/v1/split`
+        无 token → **401**。所以 locust 报表里 split 那一行的 p50/p99 是
+        「路由未命中」的往返耗时，与 `compute()` 的 CPU 成本无关。
+
+        要修得同时改两处 —— 路径换成 `/api/v1/split`，并在 `on_start` 里用
+        `POST /api/v1/auth/login` 拿 Bearer token 塞进 headers；否则改完路径仍是 401。
+        这属改压测口径、会改变已有报表的可比性，故此处**只记录、不改动**。
+        """
         payload = {
             "receipt": {
                 "items": [{"description": "pizza", "amount": 30, "assigned_to": ["u1", "u2"]}],
