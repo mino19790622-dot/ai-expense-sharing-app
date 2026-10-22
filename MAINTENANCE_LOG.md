@@ -92,3 +92,8 @@
 - **Change**: 给 health / split 两个 task 补 docstring。核心事实：Stage 6 把业务路由挂到 APIRouter(prefix='/api/v1') 后，locustfile 里仍打旧路径 /split；TestClient 实测 POST /split -> 404，POST /api/v1/split 无 token -> 401，故 locust 报表里 split 的 p50/p99 是路由未命中的往返耗时，与 compute() 的 CPU 成本无关。修复需同时换路径 + 在 on_start 登录取 Bearer token，属改压测口径，本次只记录未改动。另注明 /health 是唯一免鉴权端点。
 - **Verification**: pytest 38 passed; ruff locustfile.py All checks passed
 
+## 2026-10-22 — test_confirm.py 补 docstring
+
+- **Change**: 给 3 个无注释的测试（requires_auth / persists_receipt_and_shows_in_history / bad_method_400）与 3 个模块级辅助函数（_token / _hdr / _body）各补一行 docstring，写明 401 拦截发生在鉴权而非校验阶段、/history 按收据创建时间倒序故取 rows[0]、未知 method 由 compute() 抛 ValueError 后由路由层转 400。纯文档，不改运行时行为。
+- **Verification**: pytest 38 passed, 1 warning; ruff clean (tests/test_confirm.py)
+
