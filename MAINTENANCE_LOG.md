@@ -97,3 +97,8 @@
 - **Change**: 给 3 个无注释的测试（requires_auth / persists_receipt_and_shows_in_history / bad_method_400）与 3 个模块级辅助函数（_token / _hdr / _body）各补一行 docstring，写明 401 拦截发生在鉴权而非校验阶段、/history 按收据创建时间倒序故取 rows[0]、未知 method 由 compute() 抛 ValueError 后由路由层转 400。纯文档，不改运行时行为。
 - **Verification**: pytest 38 passed, 1 warning; ruff clean (tests/test_confirm.py)
 
+## 2026-10-24 — 补访问日志测试的模块说明与字段断言
+
+- **Change**: tests/test_observability.py: ① 新增模块 docstring, 说明覆盖的两条契约, 并写明中间件实例在首次 dispatch 后缓存 _fh、不再读环境变量, 故不能靠换 ACCESS_LOG_FILE 验证其他分支; ② 原测试补三处断言: 两次请求应追加两行(len==2)、method==GET、client 字段存在。纯测试+文档, 无运行时行为变更。
+- **Verification**: pytest 38 passed; ruff check tests/test_observability.py: All checks passed
+
