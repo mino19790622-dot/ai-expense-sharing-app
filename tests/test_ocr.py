@@ -62,6 +62,84 @@ def test_scan_bad_image_400(client):
     assert r.status_code == 400
 
 
+def test_ocr_rejects_non_image_400(client):
+    """/ocr 与 /scan 的 content-type 闸门必须一致：非图片一律 400，且给出可读的 detail。
+
+    这个分支此前零覆盖 —— 断言 detail 里点名了 image/，避免以后被改成笼统的「参数错误」。
+    """
+    token = _token(client, username="oimg")
+    r = client.post(
+        "/api/v1/ocr",
+        files={"file": ("r.txt", b"not an image", "text/plain")},
+        headers=_hdr(token),
+    )
+    assert r.status_code == 400
+    assert "image/" in r.json()["detail"]
+
+
+def test_scan_bad_participants_json_400(client):
+    """participants 不是合法 JSON 数组时走 400（解析失败），而不是 422 或 500。
+
+    真实前端是把这个字段当字符串表单传的，序列化出错属于客户端问题，
+    必须落在 400 这一侧，才能和「后端炸了」区分开。
+    """
+    token = _token(client, username="obad")
+    r = client.post(
+        "/api/v1/scan",
+        data={"participants": "not json", "method": "equal"},
+        files={"file": ("r.png", _png(), "image/png")},
+        headers=_hdr(token),
+    )
+    assert r.status_code == 400
+    assert "participants" in r.json()["detail"]
+
+
+def test_scan_explicit_paid_by_beats_mock_result(client):
+    """显式传 paid_by=u2 时，回传的 receipt.paid_by 必须被改写为 u2。
+
+    mock OCR 后端固定把 paid_by 报成 u1，所以这条用例真正验证的是
+    routes.py 里「用户显式选择 > 模型推测」这条优先级 —— 不是 OCR 的输出。
+    """
+    token = _token(client, username="opay1")
+    r = client.post(
+        "/api/v1/scan",
+        data={
+            "participants": json.dumps([{"id": "u1", "name": "A"}, {"id": "u2", "name": "B"}]),
+            "method": "equal",
+            "paid_by": "u2",
+        },
+        files={"file": ("r.png", _png(), "image/png")},
+        headers=_hdr(token),
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["receipt"]["paid_by"] == "u2"
+    assert body["paid_by"] == "u2"
+
+
+def test_scan_falls_back_to_first_participant_when_paid_by_is_ghost(client):
+    """paid_by 不在参与者白名单里时，回落到 participants[0].id，绝不留下幽灵 id。
+
+    用 x1/x2 而不是 u1/u2：mock 返回的 u1 若留在参与者集合里，
+    「不在白名单」这个条件根本不会成立，测试就会假通过。
+    """
+    token = _token(client, username="opay2")
+    r = client.post(
+        "/api/v1/scan",
+        data={
+            "participants": json.dumps([{"id": "x1", "name": "X"}, {"id": "x2", "name": "Y"}]),
+            "method": "equal",
+            "paid_by": "ghost",
+        },
+        files={"file": ("r.png", _png(), "image/png")},
+        headers=_hdr(token),
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["receipt"]["paid_by"] == "x1"
+    assert "ghost" not in body["shares"]
+
+
 def test_scan_then_history(client):
     """端到端串起来：scan 落库后 /history 必须能看到至少一条（断言用 >=1，不假设库里原本为空）。"""
     token = _token(client)

@@ -102,3 +102,8 @@
 - **Change**: tests/test_observability.py: ① 新增模块 docstring, 说明覆盖的两条契约, 并写明中间件实例在首次 dispatch 后缓存 _fh、不再读环境变量, 故不能靠换 ACCESS_LOG_FILE 验证其他分支; ② 原测试补三处断言: 两次请求应追加两行(len==2)、method==GET、client 字段存在。纯测试+文档, 无运行时行为变更。
 - **Verification**: pytest 38 passed; ruff check tests/test_observability.py: All checks passed
 
+## 2026-10-26 — 测试 /scan 的 paid_by 优先级与两条 400 分支
+
+- **Change**: tests/test_ocr.py 新增 4 个测试：/ocr 非图片 400（此前零覆盖）、/scan participants 非法 JSON 400、显式 paid_by=u2 覆盖 mock 的 u1、paid_by 为幽灵 id 时回落 participants[0].id（用 x1/x2 使白名单条件真正成立）。纯测试增量，生产代码零改动。
+- **Verification**: pytest 42 passed（改前 38，+4）；ruff tests/test_ocr.py All checks passed；app/api/routes.py 覆盖率 87%→93%（余 6 行均为 except ValueError）
+
