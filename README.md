@@ -115,15 +115,22 @@ docker compose up --build   # 访问 http://localhost:8080
 
 ## API 速览
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/health` | 健康检查 |
-| POST | `/api/v1/split` | 一张收据 + 参与者 + 策略 → 每人应付 |
-| POST | `/api/v1/settle` | 份额 + 垫付者 → 最少笔数转账方案 |
-| POST | `/api/v1/ocr` | 上传收据图片 → 结构化 `Receipt` |
-| POST | `/api/v1/scan` | 上传图片 + 参与者 → 一步直接出分账结果 |
-| POST | `/api/v1/confirm` | 提交已分配好「谁点了哪道菜」的收据 → 结算并落库（两步式第二步） |
-| GET | `/api/v1/history` | 当前登录用户最近的收据与分账记录（需令牌） |
+| 方法 | 路径 | 鉴权 | 说明 |
+|------|------|------|------|
+| GET | `/health` | 否 | 健康检查 —— **唯一免鉴权的端点** |
+| POST | `/api/v1/auth/register` | 否 | 注册（`{username, password}`：用户名 3–20 位字母/数字/下划线，密码 ≥6 位）→ `{token, user}` |
+| POST | `/api/v1/auth/login` | 否 | 登录 → `{token, user}`；用户名不存在与密码错误**同报 401**（不暴露原因，防账号枚举） |
+| GET | `/api/v1/auth/me` | 是 | 当前登录用户 `{id, username}` |
+| POST | `/api/v1/split` | 是 | 一张收据 + 参与者 + 策略 → 每人应付 |
+| POST | `/api/v1/settle` | 是 | 份额 + 垫付者 → 最少笔数转账方案 |
+| POST | `/api/v1/ocr` | 是 | 上传收据图片 → 结构化 `Receipt` |
+| POST | `/api/v1/scan` | 是 | 上传图片 + 参与者 → 一步直接出分账结果 |
+| POST | `/api/v1/confirm` | 是 | 提交已分配好「谁点了哪道菜」的收据 → 结算并落库（两步式第二步） |
+| GET | `/api/v1/history` | 是 | 当前登录用户最近的收据与分账记录 |
+
+> 令牌以 `Authorization: Bearer <token>` 传入（`HTTPBearer`）；缺失或无效一律 401，
+> 并带 `WWW-Authenticate: Bearer` 响应头。除上表标「否」的三条外，**所有端点都挂了
+> `Depends(get_current_user)`**，包括 `/split`、`/settle`、`/ocr` —— 它们同样需要登录。
 
 ### 按菜品分摊：为什么需要两步？
 

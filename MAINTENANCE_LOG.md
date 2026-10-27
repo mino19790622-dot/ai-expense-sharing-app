@@ -107,3 +107,8 @@
 - **Change**: tests/test_ocr.py 新增 4 个测试：/ocr 非图片 400（此前零覆盖）、/scan participants 非法 JSON 400、显式 paid_by=u2 覆盖 mock 的 u1、paid_by 为幽灵 id 时回落 participants[0].id（用 x1/x2 使白名单条件真正成立）。纯测试增量，生产代码零改动。
 - **Verification**: pytest 42 passed（改前 38，+4）；ruff tests/test_ocr.py All checks passed；app/api/routes.py 覆盖率 87%→93%（余 6 行均为 except ValueError）
 
+## 2026-10-27 — README API 表补鉴权列与三个 auth 端点
+
+- **Change**: API 速览表原缺 /api/v1/auth/{register,login,me} 三条，且只在 /history 一行写「需令牌」，暗示其余端点免鉴权。实际 routes.py 的 6 个业务端点全部挂了 Depends(get_current_user)。新增「鉴权」列逐行标注，并补一段说明令牌走 Authorization: Bearer（HTTPBearer）、401 带 WWW-Authenticate，register/login 的校验规则与「同报 401 防账号枚举」。纯文档，无代码改动。
+- **Verification**: pytest 42 passed; 仅改 .md ⇒ lint 跳过
+
