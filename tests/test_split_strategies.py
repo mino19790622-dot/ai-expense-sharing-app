@@ -8,7 +8,11 @@ conservation invariant. Left uncovered were:
     different from ``per_item``);
   * both degenerate-input fallbacks (nobody consumed, all weights zero);
   * the unknown-method guard;
-  * where the integer-division remainder is parked.
+  * where the integer-division remainder is parked;
+  * the remainder fallback for a ghost ``paid_by`` (not in ``participants``),
+    which parks the cents on ``participants[0]`` instead;
+  * a participant who consumed nothing under ``proportional`` — they pay zero,
+    tax included, which is where this strategy diverges from ``per_item``.
 """
 
 import pytest
@@ -90,3 +94,43 @@ def test_to_cents_rounds_to_whole_cents():
     assert to_cents(19.99) == 1999
     assert to_cents(0.1) == 10
     assert to_cents(0.0) == 0
+
+
+def test_remainder_falls_back_to_first_participant_when_payer_is_ghost():
+    """``paid_by`` outside ``participants`` must still conserve the total.
+
+    ``compute`` parks the integer-division remainder on the payer, but only if
+    the payer is actually in ``shares_cents``; otherwise it falls back to
+    ``participant_ids[0]``.  The API layer rewrites ghost payers before calling
+    in (see ``test_scan_falls_back_to_first_participant_when_paid_by_is_ghost``),
+    so this branch is only reachable through the core function directly.
+    """
+    receipt = Receipt(items=[LineItem(description="x", amount=10)], tax=0, paid_by="ghost")
+    out = compute(receipt, _parts("u1", "u2", "u3"), "equal")
+    # 1000 // 3 = 333 each = 999, the stray cent lands on u1, not on "ghost"
+    assert out["shares"] == {"u1": 3.34, "u2": 3.33, "u3": 3.33}
+    assert "ghost" not in out["shares"]
+    assert out["paid_by"] == "ghost"  # echoed back untouched, never sanitised here
+    assert round(sum(out["shares"].values()), 2) == out["total"] == 10.0
+
+
+def test_proportional_charges_a_non_consumer_nothing_not_even_tax():
+    """Under ``proportional`` a participant who ordered nothing pays zero.
+
+    ``per_item`` would still charge them a headcount share of the tax; this
+    test pins that ``proportional`` does not.
+    """
+    receipt = Receipt(
+        items=[
+            LineItem(description="咖啡", amount=10, assigned_to=["u1"]),
+            LineItem(description="牛排", amount=30, assigned_to=["u2"]),
+        ],
+        tax=20,
+        paid_by="u1",
+    )
+    parts = _parts("u1", "u2", "u3")
+    prop = compute(receipt, parts, "proportional")
+    assert prop["shares"] == {"u1": 15.0, "u2": 45.0, "u3": 0.0}
+    assert compute(receipt, parts, "per_item")["shares"]["u3"] > 0
+    assert round(sum(prop["shares"].values()), 2) == prop["total"] == 60.0
+

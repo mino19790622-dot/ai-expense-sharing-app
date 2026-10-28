@@ -112,3 +112,8 @@
 - **Change**: API 速览表原缺 /api/v1/auth/{register,login,me} 三条，且只在 /history 一行写「需令牌」，暗示其余端点免鉴权。实际 routes.py 的 6 个业务端点全部挂了 Depends(get_current_user)。新增「鉴权」列逐行标注，并补一段说明令牌走 Authorization: Bearer（HTTPBearer）、401 带 WWW-Authenticate，register/login 的校验规则与「同报 401 防账号枚举」。纯文档，无代码改动。
 - **Verification**: pytest 42 passed; 仅改 .md ⇒ lint 跳过
 
+## 2026-10-28 — test(split): pin the ghost-payer remainder fallback
+
+- **Change**: Two tests in tests/test_split_strategies.py, no production change: (1) compute() parks the integer-division remainder on participants[0] when paid_by is not in participants -- 10.00 over 3 people with paid_by='ghost' gives 3.34/3.33/3.33 and echoes paid_by back untouched; (2) under 'proportional' a participant who consumed nothing pays 0.00 including tax, where 'per_item' still charges them a headcount share. Module docstring updated to list both.
+- **Verification**: pytest 44 passed (42 -> 44); ruff clean on the touched file
+
