@@ -117,3 +117,8 @@
 - **Change**: Two tests in tests/test_split_strategies.py, no production change: (1) compute() parks the integer-division remainder on participants[0] when paid_by is not in participants -- 10.00 over 3 people with paid_by='ghost' gives 3.34/3.33/3.33 and echoes paid_by back untouched; (2) under 'proportional' a participant who consumed nothing pays 0.00 including tax, where 'per_item' still charges them a headcount share. Module docstring updated to list both.
 - **Verification**: pytest 44 passed (42 -> 44); ruff clean on the touched file
 
+## 2026-10-30 — 文档化 test_api.py 的 2 个辅助函数与 5 个测试
+
+- **Change**: 为 _token/_hdr 与 test_split_requires_auth、test_split_ok_and_saved、test_split_bad_method_400、test_settle_ok 各补 docstring，记录 401/400 的分界、saved 字段是路由硬编码而非数据库行数、以及 settle 的 40/40/20 期望转账方向；纯注释，无运行时行为变化
+- **Verification**: pytest 44 passed；ruff tests/test_api.py All checks passed
+
