@@ -15,7 +15,7 @@ import base64
 import json
 import os
 import re
-from typing import List, Protocol
+from typing import Protocol
 
 from app.core.split import LineItem, Receipt
 
@@ -62,7 +62,7 @@ class QwenVLOCRBackend:
         if not self.api_key:
             raise RuntimeError("缺少环境变量 DASHSCOPE_API_KEY，无法使用 Qwen-VL 后端")
         # 懒加载 httpx：没装时也不影响离线路径（mock 后端用不到它）
-        import httpx  # noqa: F401
+        import httpx
 
         self._httpx = httpx
 
@@ -158,6 +158,24 @@ class QwenVLOCRBackend:
 # 4. 工厂：根据环境变量选择后端（默认 mock，离线即可跑）
 # ---------------------------------------------------------------------------
 def get_ocr_backend() -> OCRBackend:
+    """按 `OCR_BACKEND` 环境变量选后端。调用方必须知道的三条契约：
+
+    1. **只有精确的 `qwen` 会切到真实后端**，判定是 `name == "qwen"`
+       （先 `.lower()`，所以 `QWEN` / `Qwen` 也算）。其余取值 —— 包括
+       `qwen-vl`、`qwen_vl`、`qwen `（带尾随空格）、`real`、`openai`、`vlm`、
+       `qwen2`、空串 —— **一律静默回落到 `MockOCRBackend`**：不报错、不告警、
+       本模块根本没有 logger。所以拼错环境变量不会失败，只会拿到一份写死的
+       假收据（Pizza/Coke/Salad 三道菜）却以为在调真模型。
+    2. 选了 `qwen` 却没设 `DASHSCOPE_API_KEY` 时，**抛的是 `RuntimeError`
+       而不是 `ValueError`**（`QwenVLOCRBackend.__init__` 里的检查）。
+       `/ocr` 与 `/scan` 两条路由只 `except ValueError` ⇒ 这个异常逃出去，
+       FastAPI 兜成 **500 Internal Server Error**，而不是客户端能看懂的 400。
+       也就是说「忘配 API key」这一类**部署配置错误**，在响应里与「服务端炸了」
+       完全无法区分。
+    3. 环境变量是**每次调用时读**的（`os.getenv` 在函数体内，不在模块导入时），
+       所以运行中改 `os.environ` 立刻生效；反过来，构造 `QwenVLOCRBackend`
+       也是每次调用都新建一个实例。
+    """
     name = os.getenv("OCR_BACKEND", "mock").lower()
     if name == "qwen":
         return QwenVLOCRBackend()

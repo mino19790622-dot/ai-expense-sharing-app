@@ -88,7 +88,7 @@ my-expense/
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# 2) 跑测试（当前 38 passed）
+# 2) 跑测试（当前 58 passed）
 pytest tests -q
 
 # 3) 起服务
@@ -110,6 +110,13 @@ docker compose up --build   # 访问 http://localhost:8080
 | `ACCESS_LOG_FILE` | 访问日志落盘路径（不设则打 stdout） | 无 |
 | `EXPENSE_DB` | SQLite 数据库文件路径（测试指向临时库即可隔离） | `app/data/app.db` |
 | `SECRET_KEY` | 令牌 HMAC 签名密钥 —— **生产必须替换**，默认值仅供开发 | `dev-insecure-change-me` |
+
+> `OCR_BACKEND` 只认精确的 `qwen`（比对前会转小写，`QWEN` / `Qwen` 也算）。
+> 其它任何取值 —— 包括 `qwen-vl`、带空格的 `qwen`、空串 —— 都会**静默回落**
+> `mock` 后端，不报错也不告警；此时返回的是一份写死的假收据，而不是真实识别结果。
+> 另外，选了 `qwen` 却没配 `DASHSCOPE_API_KEY` 时抛的是 `RuntimeError`，
+> `/ocr` 与 `/scan` 只会返回 **500**（而不是 400）—— 这类配置错误在响应里与
+> 「服务端故障」无法区分，排查时先看环境变量。
 
 ---
 

@@ -2,7 +2,10 @@
 import json
 from io import BytesIO
 
+import pytest
 from PIL import Image
+
+from app.core.ocr import MockOCRBackend, QwenVLOCRBackend, get_ocr_backend
 
 
 def _png():
@@ -152,3 +155,42 @@ def test_scan_then_history(client):
     h = client.get("/api/v1/history", headers=_hdr(token))
     assert h.status_code == 200
     assert len(h.json()) >= 1
+
+
+# ---------------------------------------------------------------------------
+# 后端选择器的契约（app/core/ocr.py::get_ocr_backend）
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "value",
+    ["qwen-vl", "qwen_vl", "qwen ", " qwen", "real", "openai", "vlm", "qwen2", "", "MO"],
+)
+def test_ocr_backend_falls_back_to_mock_for_unknown_values(monkeypatch, value):
+    """除了精确的 qwen，任何 OCR_BACKEND 取值都静默回落 mock，不报错也不告警。
+
+    这条钉住「拼错环境变量不失败、只会拿到假收据」这个事实 ——
+    qwen-vl / 带空格的 qwen 都是运维很容易写出来的。
+    """
+    monkeypatch.setenv("OCR_BACKEND", value)
+    assert isinstance(get_ocr_backend(), MockOCRBackend)
+
+
+@pytest.mark.parametrize("value", ["qwen", "QWEN", "Qwen"])
+def test_ocr_backend_selects_qwen_case_insensitively(monkeypatch, value):
+    """后端名比对前会 .lower()，所以 QWEN / Qwen 与 qwen 等价。"""
+    monkeypatch.setenv("OCR_BACKEND", value)
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "sk-test-not-a-real-key")
+    assert isinstance(get_ocr_backend(), QwenVLOCRBackend)
+
+
+def test_qwen_backend_without_api_key_raises_runtime_error(monkeypatch):
+    """选了 qwen 却没配 DASHSCOPE_API_KEY 时抛 RuntimeError —— 不是 ValueError。
+
+    路由的 except ValueError 抓不到它 ⇒ /ocr 与 /scan 会返回 500 而非 400。
+    断言异常类型本身就是为了把这个「配置错误伪装成服务端故障」的事实钉住。
+    """
+    monkeypatch.setenv("OCR_BACKEND", "qwen")
+    monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
+    with pytest.raises(RuntimeError) as exc:
+        get_ocr_backend()
+    assert not isinstance(exc.value, ValueError)
+    assert "DASHSCOPE_API_KEY" in str(exc.value)
