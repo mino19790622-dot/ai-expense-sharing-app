@@ -20,19 +20,34 @@ def test_creditor_receives_from_two_debtors():
     assert total_paid_to_u1 == 60.0
 
 
-def test_chained_minimization_fewer_than_naive():
-    # 经典场景：A 垫付 100，三人均摊后 A 应收 66.67*3≈100
-    # 这里构造一个「链式」例子，证明贪心比朴素少笔数：
-    # u1 垫付 100；u2 应摊 50、u3 应摊 50
+def test_two_party_cases_match_naive_count():
+    # 说明：这两个例子**并不能**证明「贪心比朴素少笔数」——两边的笔数其实相等。
+    # 在 settle() 的模型里，只有垫付者付过钱，所以除他以外每个人的净余额都 <= 0，
+    # 债权人有且只有垫付者一个；单一债权人下贪心就是把每个债务人依次还清，
+    # 笔数必然等于 naive_settle 的「人数-1」。真正能看到贪心优势的是 _min_cash_flow
+    # 的多债权人输入（见下面两个用例），那不是 settle() 能构造出来的场景。
     shares = {"u1": 50.0, "u2": 50.0, "u3": 50.0}
     out = settle(shares, paid_by="u1", total=150.0)
     # 贪心：2 笔（u2->u1 50, u3->u1 50）；朴素也是 2 笔，相等
     assert out["num_transactions"] == 2
-    # 但换个链式结构：u1 垫 60，u2 摊 40，u3 摊 20
+    assert out["num_transactions"] == len(naive_settle(shares, "u1"))
+    # 换个分摊结构：u1 垫 100，u2 摊 40，u3 摊 20
     shares2 = {"u1": 40.0, "u2": 40.0, "u3": 20.0}
     out2 = settle(shares2, paid_by="u1", total=100.0)
-    # 朴素 = 2 笔；这里同样 2 笔（都是直接还 u1）
     assert out2["num_transactions"] == len(naive_settle(shares2, "u1"))
+
+
+def test_settle_has_a_single_creditor_so_counts_never_beat_naive():
+    # 钉住上面那条结论：settle() 里非垫付者的余额一律 <= 0（不可能成为债权人），
+    # 故最少笔数恒等于 naive_settle 的笔数。含三人分摊除不尽的用例。
+    for shares, total in [
+        ({"u1": 18.33, "u2": 18.33, "u3": 23.34}, 60.0),
+        ({"u1": 3.34, "u2": 3.33, "u3": 3.33}, 10.0),
+        ({"u1": 0.0, "u2": 5.0}, 5.0),
+    ]:
+        out = settle(shares, paid_by="u1", total=total)
+        assert all(b <= 0 for p, b in out["balances"].items() if p != "u1")
+        assert out["num_transactions"] == len(naive_settle(shares, "u1"))
 
 
 def test_balances_sum_to_zero():

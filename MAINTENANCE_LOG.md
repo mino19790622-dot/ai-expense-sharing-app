@@ -127,3 +127,8 @@
 - **Change**: 给 get_ocr_backend() 补 docstring，写清三条契约，全部用一次性探针实测后才落笔：① 只有精确的 qwen 才切真实后端（比对前 .lower()，故 QWEN/Qwen 等价），qwen-vl / qwen_vl / 带空格的 qwen / real / openai / vlm / qwen2 / 空串一律静默回落 mock —— 不报错、不告警，本模块根本没有 logger，拼错环境变量只会拿到写死的假收据（Pizza/Coke/Salad）却以为在调真模型；② 选了 qwen 却没配 DASHSCOPE_API_KEY 时抛的是 RuntimeError 而非 ValueError，而 /ocr 与 /scan 两条路由只 except ValueError，故该异常逃出去被 FastAPI 兜成 500 而非 400 —— '忘配 API key' 这类部署配置错误在响应里与'服务端炸了'完全无法区分（TestClient 实测两条端点均返回 500）；③ 环境变量每次调用时读，运行中改 os.environ 立刻生效，且每次调用都新建一个后端实例。tests/test_ocr.py 新增 14 个用例钉住这些行为（10 个静默回落取值 + 3 个大小写等价 + 1 个异常类型），测试数 44 -> 58。README.md 两处：本地运行段的'当前 38 passed'与实测 58 不符，已改正；环境变量表下补一段说明 OCR_BACKEND 的精确匹配规则与 500 陷阱。另顺手清掉 app/core/ocr.py 的 3 处存量 ruff 违规（UP035+F401 typing.List 未使用、UP035 typing.List 已废弃、RUF100 未使用的 noqa F401 —— 那个 httpx 紧接着就被赋给 self._httpx，noqa 本就多余），该文件从带债名单毕业。生产代码零行为变更。
 - **Verification**: pytest tests -q -> 58 passed (改前 44，+14)，0 failed；ruff check 仅 lint 本次改动的 app/core/ocr.py 与 tests/test_ocr.py -> All checks passed!；全部 docstring 断言均先用 /tmp 探针实测（后端选择矩阵 15 种取值、异常类型与 API 层 500、mock 收据指纹、每次调用新建实例）后才落笔
 
+
+## 2026-11-03 — 修正 test_debt 里名不副实的「贪心更少笔数」用例
+
+- **Change**: tests/test_debt.py: 原 test_chained_minimization_fewer_than_naive 的注释声称「证明贪心比朴素少笔数」，但两条断言实际只验证相等 —— 在 settle() 的模型里这是必然的：只有垫付者付过钱，故非垫付者净余额一律 <= 0、债权人有且只有垫付者一个，单一债权人下贪心就是把每个债务人依次还清，笔数恒等于 naive_settle。已将函数改名为 test_two_party_cases_match_naive_count 并把注释改成如实描述（同时补上第二条 shares 的笔数断言）。新增 test_settle_has_a_single_creditor_so_counts_never_beat_naive：3 组用例（含 18.33/18.33/23.34 与 3.34/3.33/3.33 两处除不尽的分摊）断言非垫付者余额 <= 0 且笔数 == naive 笔数。该结论先用一次性探针穷举 2~5 人、分值 0~4 共 18536 组 (shares,total,paid_by) 实测 0 反例后才落笔。生产代码零改动。
+- **Verification**: pytest tests -q -> 59 passed（改前 58，+1）；ruff check tests/test_debt.py -> All checks passed!
