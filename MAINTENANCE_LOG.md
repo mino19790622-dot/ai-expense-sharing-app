@@ -132,3 +132,8 @@
 
 - **Change**: tests/test_debt.py: 原 test_chained_minimization_fewer_than_naive 的注释声称「证明贪心比朴素少笔数」，但两条断言实际只验证相等 —— 在 settle() 的模型里这是必然的：只有垫付者付过钱，故非垫付者净余额一律 <= 0、债权人有且只有垫付者一个，单一债权人下贪心就是把每个债务人依次还清，笔数恒等于 naive_settle。已将函数改名为 test_two_party_cases_match_naive_count 并把注释改成如实描述（同时补上第二条 shares 的笔数断言）。新增 test_settle_has_a_single_creditor_so_counts_never_beat_naive：3 组用例（含 18.33/18.33/23.34 与 3.34/3.33/3.33 两处除不尽的分摊）断言非垫付者余额 <= 0 且笔数 == naive 笔数。该结论先用一次性探针穷举 2~5 人、分值 0~4 共 18536 组 (shares,total,paid_by) 实测 0 反例后才落笔。生产代码零改动。
 - **Verification**: pytest tests -q -> 59 passed（改前 58，+1）；ruff check tests/test_debt.py -> All checks passed!
+
+## 2026-11-04 — 修正可观测性测试里写错的句柄重置位置
+
+- **Change**: tests/test_observability.py 的模块 docstring 让后来者用 app.middleware_stack._fh = None 重置访问日志句柄，实测无效：middleware_stack 是外层 ServerErrorMiddleware，没有 _fh，赋值只凭空多一个无用属性，句柄照旧缓存、后续用例仍写旧文件。改为指出句柄在 app.middleware_stack.app 上，并新增 test_log_handle_survives_env_change_until_reset 把这条缓存契约钉住（改 env 不换文件、显式置 None 才换），单跑与全量均通过。生产代码零改动。
+- **Verification**: pytest 60 passed（改前 59，+1；新增用例单跑亦通过），ruff All checks passed
